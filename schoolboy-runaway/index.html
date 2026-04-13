@@ -1,28 +1,19 @@
-<!DOCTYPE html>
-<html lang="en-us">
-  <head>
-    <base href="https://cdn.jsdelivr.net/gh/genizy/web-port@main/schoolboy-runaway/">
-    <meta charset="utf-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>SchoolBoy Runaway | Menu Mode Unlocked</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico" />
-    <link rel="stylesheet" href="TemplateData/style.css" />
-  </head>
-  <body>
-    <div id="loading-text" style="color: black; font-size: 48px; font-family: cursive; text-align: center; margin-top: 20px;">
-      LOADING...
-    </div>
-    <div id="unity-container">
-      <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div>
-      </div>
-    </div>
-    <script>
+<script>
       const loadingText = document.querySelector("#loading-text");
       let totalBytes = 315673804.8;
       let loadedBytes = 0;
+
+      // 1. THE "PERMANENT UNLOCK" HEARTBEAT
+      // This runs every second to ensure the game never "relocks" your progress.
+      setInterval(() => {
+        try {
+          localStorage.setItem('EndingsFound', '5');
+          localStorage.setItem('allEndingsUnlocked', 'true');
+          localStorage.setItem('MenuUnlocked', 'true');
+          localStorage.setItem('completed', 'true');
+          localStorage.setItem('save_data_runaway', '{"endings":5,"unlocked":true}'); // Common Unity save format
+        } catch (e) {}
+      }, 1000);
 
       function formatSize(bytes) {
         if (bytes > 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
@@ -92,34 +83,15 @@
             loadingText.remove();
             loadingBar.style.display = "none";
 
-            // --- CHEAT INJECTION LOGIC ---
-            
-            // 1. Force Local Storage immediately
-            localStorage.setItem('EndingsFound', '5');
-            localStorage.setItem('MenuUnlocked', 'true');
-            localStorage.setItem('completed', 'true');
-
-            // 2. The Hammer Loop: Sends unlock commands every 1.5 seconds for 15 seconds
-            let count = 0;
-            const unlocker = setInterval(() => {
-              try {
-                // Try all known Manager names for this port
-                unityInstance.SendMessage('SaveManager', 'UnlockAllEndings');
-                unityInstance.SendMessage('MenuManager', 'ShowCheatMenu');
-                unityInstance.SendMessage('GameManager', 'UnlockAll');
-                
-                console.log("Unlock attempt " + count);
-              } catch (e) {}
-
-              count++;
-              if (count > 10) clearInterval(unlocker);
-            }, 1500);
-
+            // 2. FORCE THE UNITY INTERNAL MENU
+            setTimeout(() => {
+               unityInstance.SendMessage('SaveManager', 'UnlockAllEndings');
+               unityInstance.SendMessage('MenuManager', 'OpenMenu');
+               console.log("Unity Instance modified.");
+            }, 5000); // Waits 5 seconds after load to force the button
           })
           .catch((message) => { alert(message); });
         };
         document.body.appendChild(script);
       })();
     </script>
-  </body>
-</html>
