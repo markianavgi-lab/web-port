@@ -146,9 +146,17 @@
           createUnityInstance(canvas, config, (progress) => {
             progressBarFull.style.width = 100 * progress + "%";
           })
-            .then((unityInstance) => {
-              loadingText.remove();
-              loadingBar.style.display = "none";
+            then((unityInstance) => {
+  loadingText.remove();
+  loadingBar.style.display = "none";
+
+  // FORCED UNLOCK: This tells Unity to unlock the menu
+  // 'SaveManager' is the common object name in this port
+  unityInstance.SendMessage('SaveManager', 'UnlockAllEndings');
+  unityInstance.SendMessage('MenuManager', 'ShowCheatMenu');
+  
+  console.log("Menu Mode Force-Enabled");
+})
             })
             .catch((message) => {
               alert(message);
