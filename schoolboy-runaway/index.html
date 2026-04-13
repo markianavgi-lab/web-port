@@ -4,7 +4,7 @@
     <base href="https://cdn.jsdelivr.net/gh/genizy/web-port@main/schoolboy-runaway/">
     <meta charset="utf-8" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Unity WebGL Player | SchoolBoy Runaway</title>
+    <title>Unity WebGL Player | SchoolBoy Runaway (Modded)</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico" />
     <link rel="stylesheet" href="TemplateData/style.css" />
   </head>
@@ -46,6 +46,7 @@
           return bytes + " B";
         }
       }
+
       async function fetchWithProgress(url) {
         const response = await fetch(url);
         const reader = response.body.getReader();
@@ -59,10 +60,7 @@
           chunks.push(value);
           const doneText = formatSize(loadedBytes);
           const totalText = formatSize(totalBytes);
-          const percent =
-            totalBytes > 0
-              ? ((loadedBytes / totalBytes) * 100).toFixed(1)
-              : "?";
+          const percent = totalBytes > 0 ? ((loadedBytes / totalBytes) * 100).toFixed(1) : "?";
           loadingText.textContent = `LOADING... ${doneText} / ${totalText} (${percent}%)`;
         }
         let fullBuffer = new Uint8Array(received);
@@ -73,6 +71,7 @@
         }
         return fullBuffer.buffer;
       }
+
       async function mergeFiles(parts) {
         const buffers = await Promise.all(parts.map(fetchWithProgress));
         return URL.createObjectURL(new Blob(buffers));
@@ -85,29 +84,18 @@
         }
         return parts;
       }
+
       (async () => {
         const dataParts = getParts("Build/schoolboy-runaway.data", 14);
         const wasmParts = getParts("Build/schoolboy-runaway.wasm", 2);
-        const allParts = [...dataParts, ...wasmParts];
         const [dataUrl, wasmUrl] = await Promise.all([
           mergeFiles(dataParts),
           mergeFiles(wasmParts),
         ]);
-        var container = document.querySelector("#unity-container");
+
         var canvas = document.querySelector("#unity-canvas");
         var loadingBar = document.querySelector("#unity-loading-bar");
-        var progressBarFull = document.querySelector(
-          "#unity-progress-bar-full"
-        );
-        var warningBanner = document.querySelector("#unity-warning");
-
-        // Shows a temporary message banner/ribbon for a few seconds, or
-        // a permanent error message on top of the canvas if type=='error'.
-        // If type=='warning', a yellow highlight color is used.
-        // Modify or remove this function to customize the visually presented
-        // way that non-critical warnings and error messages are presented to the
-        // user.
-        function unityShowBanner(msg, type) {}
+        var progressBarFull = document.querySelector("#unity-progress-bar-full");
 
         var buildUrl = "Build";
         var loaderUrl = buildUrl + "/schoolboy-runaway.loader.js";
@@ -119,22 +107,12 @@
           companyName: "Linked Squad",
           productName: "SchoolBoy Runaway",
           productVersion: "0.500",
-          showBanner: unityShowBanner,
         };
 
-        // By default Unity keeps WebGL canvas render target size matched with
-        // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-        // Set this to false if you want to decouple this synchronization from
-        // happening inside the engine, and you would instead like to size up
-        // the canvas DOM size and WebGL render target sizes yourself.
-        // config.matchWebGLToCanvasSize = false;
-
         if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-          // Mobile device style: fill the whole browser client area with the game canvas:
           var meta = document.createElement("meta");
           meta.name = "viewport";
-          meta.content =
-            "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
+          meta.content = "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
           document.getElementsByTagName("head")[0].appendChild(meta);
         }
 
@@ -146,21 +124,24 @@
           createUnityInstance(canvas, config, (progress) => {
             progressBarFull.style.width = 100 * progress + "%";
           })
-            then((unityInstance) => {
-  loadingText.remove();
-  loadingBar.style.display = "none";
+          .then((unityInstance) => {
+            loadingText.remove();
+            loadingBar.style.display = "none";
 
-  // FORCED UNLOCK: This tells Unity to unlock the menu
-  // 'SaveManager' is the common object name in this port
-  unityInstance.SendMessage('SaveManager', 'UnlockAllEndings');
-  unityInstance.SendMessage('MenuManager', 'ShowCheatMenu');
-  
-  console.log("Menu Mode Force-Enabled");
-})
-            })
-            .catch((message) => {
-              alert(message);
-            });
+            // FORCED UNLOCK SEQUENCE
+            // 1. Set local storage to trick the game's check
+            localStorage.setItem('EndingsFound', '5');
+            localStorage.setItem('MenuUnlocked', 'true');
+
+            // 2. Send commands to Unity internal managers
+            unityInstance.SendMessage('SaveManager', 'UnlockAllEndings');
+            unityInstance.SendMessage('MenuManager', 'ShowCheatMenu');
+            
+            console.log("Cheats Injected Successfully");
+          })
+          .catch((message) => {
+            alert(message);
+          });
         };
         document.body.appendChild(script);
       })();
