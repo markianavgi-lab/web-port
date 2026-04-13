@@ -1,97 +1,170 @@
 <script>
-      const loadingText = document.querySelector("#loading-text");
-      let totalBytes = 315673804.8;
-      let loadedBytes = 0;
+const loadingText = document.querySelector("#loading-text");
+let totalBytes = 315673804.8;
+let loadedBytes = 0;
 
-      // 1. THE "PERMANENT UNLOCK" HEARTBEAT
-      // This runs every second to ensure the game never "relocks" your progress.
-      setInterval(() => {
+// =========================
+// 🔓 FORCE SAVE UNLOCK LOOP
+// =========================
+function forceUnlock() {
+  try {
+    const saveData = {
+      endings: 999,
+      completed: true,
+      unlocked: true,
+      menu: true
+    };
+
+    localStorage.setItem("save_data_runaway", JSON.stringify(saveData));
+    localStorage.setItem("EndingsFound", "999");
+    localStorage.setItem("MenuUnlocked", "true");
+    localStorage.setItem("completed", "true");
+
+    console.log("Unlock attempted");
+  } catch (e) {}
+}
+setInterval(forceUnlock, 2000);
+
+// =========================
+// 📊 LOADING FUNCTIONS
+// =========================
+function formatSize(bytes) {
+  if (bytes > 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+  if (bytes > 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+  return (bytes / 1024).toFixed(2) + " KB";
+}
+
+async function fetchWithProgress(url) {
+  const response = await fetch(url);
+  const reader = response.body.getReader();
+  let chunks = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    received += value.length;
+    loadedBytes += value.length;
+    chunks.push(value);
+
+    loadingText.textContent =
+      `LOADING... ${formatSize(loadedBytes)} / ${formatSize(totalBytes)} (${((loadedBytes / totalBytes) * 100).toFixed(1)}%)`;
+  }
+
+  let fullBuffer = new Uint8Array(received);
+  let offset = 0;
+  for (let chunk of chunks) {
+    fullBuffer.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return fullBuffer.buffer;
+}
+
+async function mergeFiles(parts) {
+  const buffers = await Promise.all(parts.map(fetchWithProgress));
+  return URL.createObjectURL(new Blob(buffers));
+}
+
+function getParts(file, count) {
+  let parts = [];
+  for (let i = 1; i <= count; i++) parts.push(file + ".part" + i);
+  return parts;
+}
+
+// =========================
+// 🎮 START GAME
+// =========================
+(async () => {
+  const dataParts = getParts("Build/schoolboy-runaway.data", 14);
+  const wasmParts = getParts("Build/schoolboy-runaway.wasm", 2);
+
+  const [dataUrl, wasmUrl] = await Promise.all([
+    mergeFiles(dataParts),
+    mergeFiles(wasmParts)
+  ]);
+
+  var canvas = document.querySelector("#unity-canvas");
+  var loadingBar = document.querySelector("#unity-loading-bar");
+  var progressBarFull = document.querySelector("#unity-progress-bar-full");
+
+  var config = {
+    dataUrl: dataUrl,
+    frameworkUrl: "Build/schoolboy-runaway.framework.js",
+    codeUrl: wasmUrl,
+    streamingAssetsUrl: "StreamingAssets",
+    companyName: "Linked Squad",
+    productName: "SchoolBoy Runaway",
+    productVersion: "0.500",
+  };
+
+  var script = document.createElement("script");
+  script.src = "Build/schoolboy-runaway.loader.js";
+
+  script.onload = () => {
+    createUnityInstance(canvas, config, (progress) => {
+      progressBarFull.style.width = 100 * progress + "%";
+    })
+    .then((unityInstance) => {
+      loadingText.remove();
+      loadingBar.style.display = "none";
+
+      console.log("Unity Loaded");
+
+      // =========================
+      // 🧠 TRY REAL MENU UNLOCK
+      // =========================
+      setTimeout(() => {
+        const objects = ["MenuManager", "GameManager", "UIManager", "SaveManager"];
+        const methods = ["OpenMenu", "UnlockAllEndings", "ShowMenu", "CompleteGame"];
+
+        objects.forEach(obj => {
+          methods.forEach(method => {
+            try {
+              unityInstance.SendMessage(obj, method);
+              console.log("Tried:", obj, method);
+            } catch (e) {}
+          });
+        });
+      }, 6000);
+
+      // =========================
+      // 🧩 CUSTOM MENU (ALWAYS WORKS)
+      // =========================
+      const menu = document.createElement("div");
+      menu.style.position = "absolute";
+      menu.style.top = "20px";
+      menu.style.right = "20px";
+      menu.style.background = "black";
+      menu.style.color = "lime";
+      menu.style.padding = "10px";
+      menu.style.fontFamily = "monospace";
+      menu.style.zIndex = "9999";
+
+      menu.innerHTML = `
+        <b>MENU MODE</b><br>
+        <button id="unlockBtn">Unlock All</button><br>
+        <button id="menuBtn">Open Menu</button>
+      `;
+
+      document.body.appendChild(menu);
+
+      document.getElementById("unlockBtn").onclick = () => {
+        forceUnlock();
+        alert("Unlock triggered");
+      };
+
+      document.getElementById("menuBtn").onclick = () => {
         try {
-          localStorage.setItem('EndingsFound', '5');
-          localStorage.setItem('allEndingsUnlocked', 'true');
-          localStorage.setItem('MenuUnlocked', 'true');
-          localStorage.setItem('completed', 'true');
-          localStorage.setItem('save_data_runaway', '{"endings":5,"unlocked":true}'); // Common Unity save format
+          unityInstance.SendMessage("MenuManager", "OpenMenu");
         } catch (e) {}
-      }, 1000);
+        alert("Menu attempt sent");
+      };
+    })
+    .catch((message) => alert(message));
+  };
 
-      function formatSize(bytes) {
-        if (bytes > 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
-        if (bytes > 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + " MB";
-        return (bytes / 1024).toFixed(2) + " KB";
-      }
-
-      async function fetchWithProgress(url) {
-        const response = await fetch(url);
-        const reader = response.body.getReader();
-        let chunks = [];
-        let received = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          received += value.length;
-          loadedBytes += value.length;
-          chunks.push(value);
-          loadingText.textContent = `LOADING... ${formatSize(loadedBytes)} / ${formatSize(totalBytes)} (${((loadedBytes / totalBytes) * 100).toFixed(1)}%)`;
-        }
-        let fullBuffer = new Uint8Array(received);
-        let offset = 0;
-        for (let chunk of chunks) {
-          fullBuffer.set(chunk, offset);
-          offset += chunk.length;
-        }
-        return fullBuffer.buffer;
-      }
-
-      async function mergeFiles(parts) {
-        const buffers = await Promise.all(parts.map(fetchWithProgress));
-        return URL.createObjectURL(new Blob(buffers));
-      }
-
-      function getParts(file, count) {
-        let parts = [];
-        for (let i = 1; i <= count; i++) parts.push(file + ".part" + i);
-        return parts;
-      }
-
-      (async () => {
-        const dataParts = getParts("Build/schoolboy-runaway.data", 14);
-        const wasmParts = getParts("Build/schoolboy-runaway.wasm", 2);
-        const [dataUrl, wasmUrl] = await Promise.all([mergeFiles(dataParts), mergeFiles(wasmParts)]);
-
-        var canvas = document.querySelector("#unity-canvas");
-        var loadingBar = document.querySelector("#unity-loading-bar");
-        var progressBarFull = document.querySelector("#unity-progress-bar-full");
-
-        var config = {
-          dataUrl: dataUrl,
-          frameworkUrl: "Build/schoolboy-runaway.framework.js",
-          codeUrl: wasmUrl,
-          streamingAssetsUrl: "StreamingAssets",
-          companyName: "Linked Squad",
-          productName: "SchoolBoy Runaway",
-          productVersion: "0.500",
-        };
-
-        var script = document.createElement("script");
-        script.src = "Build/schoolboy-runaway.loader.js";
-        script.onload = () => {
-          createUnityInstance(canvas, config, (progress) => {
-            progressBarFull.style.width = 100 * progress + "%";
-          })
-          .then((unityInstance) => {
-            loadingText.remove();
-            loadingBar.style.display = "none";
-
-            // 2. FORCE THE UNITY INTERNAL MENU
-            setTimeout(() => {
-               unityInstance.SendMessage('SaveManager', 'UnlockAllEndings');
-               unityInstance.SendMessage('MenuManager', 'OpenMenu');
-               console.log("Unity Instance modified.");
-            }, 5000); // Waits 5 seconds after load to force the button
-          })
-          .catch((message) => { alert(message); });
-        };
-        document.body.appendChild(script);
-      })();
-    </script>
+  document.body.appendChild(script);
+})();
+</script>
